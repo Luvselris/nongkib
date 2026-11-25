@@ -155,6 +155,12 @@
     .music-btn.playing {
       background: var(--bg-blush);
       border-color: var(--accent-coral);
+      animation: pulseMusic 2.2s ease-in-out infinite;
+    }
+
+    @keyframes pulseMusic {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.07); }
     }
 
     .tab-content { display: none; }
@@ -245,21 +251,23 @@
       margin: 22px 0 12px 2px;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 6px;
+      text-align: left;
+    }
+
+    .section-label.centered {
+      justify-content: center;
       text-align: center;
     }
 
+    /* ไฮไลท์ชิดซ้ายสุดเสมอ */
     .highlights-row {
       display: flex;
       gap: 14px;
       overflow-x: auto;
-      padding-bottom: 8px;
+      padding: 2px 2px 8px;
       scrollbar-width: none;
-      justify-content: center;
-    }
-
-    .highlights-row.scroll-left {
       justify-content: flex-start;
     }
 
@@ -543,7 +551,7 @@
 </head>
 <body>
 
-  <audio id="bgMusic" loop preload="auto" playsinline src="https://file.garden/asG8Gt-rqWIpi3II/%E0%B8%81%E0%B8%B8%E0%B9%8A%E0%B8%81%E0%B8%81%E0%B8%B9%E0%B9%88.mp3"></audio>
+  <audio id="bgMusic" loop preload="auto" playsinline></audio>
 
   <!-- ลูกเล่นลอยไปมาฟุ้งๆ กลมๆ แบบละมุน -->
   <div class="floating-layer" id="floatingLayer">
@@ -609,7 +617,7 @@ Open 09:00 – 22:00
         <button type="button" class="pill-btn" id="sendReviewBtn" onclick="submitReview()">sent review ♡</button>
       </div>
 
-      <div class="section-label">
+      <div class="section-label centered">
         <span>♡ รีวิวทั้งหมด</span>
       </div>
       <div id="feedbackFeed"></div>
@@ -671,7 +679,7 @@ Open 09:00 – 22:00
     const DEFAULT_BANNER = "https://files.catbox.moe/68y4at.gif";
     const DEFAULT_PROFILE = "https://files.catbox.moe/tfihpe.jpeg";
     const DEFAULT_BIO = "welcome to Nongkib shop\nOpen 09:00 – 22:00\nรับแลกเงิน ส่งสติ๊กเกอร์ไลน์ แอพพรี เติมเกม";
-    const DEFAULT_MUSIC = "https://file.garden/asG8Gt-rqWIpi3II/%E0%B8%81%E0%B8%B8%E0%B9%8A%E0%B8%81%E0%B8%81%E0%B8%B9%E0%B9%88.mp3";
+    const DEFAULT_MUSIC = encodeURI("https://file.garden/asG8Gt-rqWIpi3II/กุ๊กกู๋.mp3");
 
     const SEED_HIGHLIGHTS = [
       { id: "seed_one", title: "one", cover: "https://files.catbox.moe/1yyb5f.png", images: ["https://files.catbox.moe/1yyb5f.png"], order: 0 },
@@ -694,53 +702,56 @@ Open 09:00 – 22:00
     const audio = document.getElementById('bgMusic');
     const musicBtn = document.getElementById('musicBtn');
     let userManuallyMuted = false;
-    let instantPlayUnlocked = false;
+    let activeMusicUrl = DEFAULT_MUSIC;
+    audio.src = activeMusicUrl;
 
-    function syncMusicState() {
+    function syncMusicUI() {
       if (!audio.paused) {
         musicBtn.classList.add('playing');
+        musicBtn.textContent = "♪";
       } else {
         musicBtn.classList.remove('playing');
+        musicBtn.textContent = "♫";
       }
     }
 
-    audio.addEventListener('play', syncMusicState);
-    audio.addEventListener('pause', syncMusicState);
+    audio.addEventListener('play', syncMusicUI);
+    audio.addEventListener('pause', syncMusicUI);
+    audio.addEventListener('error', () => {
+      musicBtn.title = "ไม่สามารถเล่นไฟล์เสียงนี้ได้";
+    });
 
-    function triggerInstantMusic() {
-      if (userManuallyMuted) return;
-      if (!audio.src || audio.src === window.location.href) {
-        audio.src = DEFAULT_MUSIC;
+    function ensureAudioSource() {
+      const target = encodeURI(activeMusicUrl || DEFAULT_MUSIC);
+      if (audio.src !== target) {
+        audio.src = target;
+        audio.load();
       }
-      audio.load();
-      const promise = audio.play();
-      if (promise && typeof promise.then === 'function') {
-        promise.then(() => {
-          instantPlayUnlocked = true;
-          syncMusicState();
-        }).catch(() => {});
+    }
+
+    function playOnTouch() {
+      if (userManuallyMuted) return;
+      ensureAudioSource();
+      if (audio.paused) {
+        const p = audio.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {});
+        }
       }
     }
 
     ['pointerdown', 'touchstart', 'click'].forEach(evtName => {
-      document.addEventListener(evtName, function onFirstGesture() {
-        triggerInstantMusic();
-        if (instantPlayUnlocked) {
-          document.removeEventListener('pointerdown', onFirstGesture, true);
-          document.removeEventListener('touchstart', onFirstGesture, true);
-          document.removeEventListener('click', onFirstGesture, true);
-        }
-      }, { capture: true, passive: true });
+      document.addEventListener(evtName, playOnTouch, { capture: true, passive: true });
     });
 
     function toggleAudio(e) {
       if (e) e.stopPropagation();
-      if (!audio.src || audio.src === window.location.href) {
-        audio.src = DEFAULT_MUSIC;
-      }
+      ensureAudioSource();
       if (audio.paused) {
         userManuallyMuted = false;
-        audio.play().catch(() => {});
+        audio.play().catch(() => {
+          alert("เบราว์เซอร์หรือโฮสต์ไฟล์เสียงไม่รองรับการเล่นไฟล์นี้ค่ะ ♡");
+        });
       } else {
         userManuallyMuted = true;
         audio.pause();
@@ -772,11 +783,16 @@ Open 09:00 – 22:00
       if (d.fbLabel) document.getElementById('fbBoxTitle').textContent = d.fbLabel;
       if (d.fbUrl) document.getElementById('fbLink').href = d.fbUrl;
 
-      if (d.musicUrl && audio.src !== d.musicUrl) {
-        const wasPlaying = !audio.paused;
-        audio.src = d.musicUrl;
-        if (wasPlaying || (!userManuallyMuted && instantPlayUnlocked)) {
-          audio.play().catch(() => {});
+      if (d.musicUrl) {
+        const nextEncoded = encodeURI(d.musicUrl);
+        if (nextEncoded !== activeMusicUrl) {
+          const wasPlaying = !audio.paused;
+          activeMusicUrl = nextEncoded;
+          audio.src = activeMusicUrl;
+          audio.load();
+          if (wasPlaying && !userManuallyMuted) {
+            audio.play().catch(() => {});
+          }
         }
       }
     }
@@ -809,7 +825,6 @@ Open 09:00 – 22:00
         bar.innerHTML = '<span style="font-size:12px; color:var(--text-muted); padding:4px;">ยังไม่มีไฮไลท์ค่ะ ♡</span>';
         return;
       }
-      bar.classList.toggle('scroll-left', hl.length > 3);
       hl.forEach((item, idx) => {
         const cover = item.cover || (item.images && item.images[0]) || DEFAULT_PROFILE;
         const div = document.createElement('div');
