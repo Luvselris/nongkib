@@ -551,7 +551,7 @@
 </head>
 <body>
 
-  <audio id="bgMusic" loop preload="auto" playsinline></audio>
+  <audio id="bgMusic" loop preload="auto" playsinline src="https://file.garden/asG8Gt-rqWIpi3II/%E0%B8%81%E0%B8%B8%E0%B9%8A%E0%B8%81%E0%B8%81%E0%B8%B9%E0%B9%88.mp3"></audio>
 
   <!-- ลูกเล่นลอยไปมาฟุ้งๆ กลมๆ แบบละมุน -->
   <div class="floating-layer" id="floatingLayer">
@@ -679,7 +679,7 @@ Open 09:00 – 22:00
     const DEFAULT_BANNER = "https://files.catbox.moe/68y4at.gif";
     const DEFAULT_PROFILE = "https://files.catbox.moe/tfihpe.jpeg";
     const DEFAULT_BIO = "welcome to Nongkib shop\nOpen 09:00 – 22:00\nรับแลกเงิน ส่งสติ๊กเกอร์ไลน์ แอพพรี เติมเกม";
-    const DEFAULT_MUSIC = encodeURI("https://file.garden/asG8Gt-rqWIpi3II/กุ๊กกู๋.mp3");
+    const DEFAULT_MUSIC = "https://file.garden/asG8Gt-rqWIpi3II/%E0%B8%81%E0%B8%B8%E0%B9%8A%E0%B8%81%E0%B8%81%E0%B8%B9%E0%B9%8B.mp3";
 
     const SEED_HIGHLIGHTS = [
       { id: "seed_one", title: "one", cover: "https://files.catbox.moe/1yyb5f.png", images: ["https://files.catbox.moe/1yyb5f.png"], order: 0 },
@@ -702,10 +702,9 @@ Open 09:00 – 22:00
     const audio = document.getElementById('bgMusic');
     const musicBtn = document.getElementById('musicBtn');
     let userManuallyMuted = false;
-    let activeMusicUrl = DEFAULT_MUSIC;
-    audio.src = activeMusicUrl;
+    let musicStartedOnce = false;
 
-    function syncMusicUI() {
+    function updateMusicButton() {
       if (!audio.paused) {
         musicBtn.classList.add('playing');
         musicBtn.textContent = "♪";
@@ -715,43 +714,48 @@ Open 09:00 – 22:00
       }
     }
 
-    audio.addEventListener('play', syncMusicUI);
-    audio.addEventListener('pause', syncMusicUI);
-    audio.addEventListener('error', () => {
-      musicBtn.title = "ไม่สามารถเล่นไฟล์เสียงนี้ได้";
+    audio.addEventListener('play', () => {
+      musicStartedOnce = true;
+      updateMusicButton();
     });
+    audio.addEventListener('pause', updateMusicButton);
 
-    function ensureAudioSource() {
-      const target = encodeURI(activeMusicUrl || DEFAULT_MUSIC);
-      if (audio.src !== target) {
-        audio.src = target;
-        audio.load();
-      }
-    }
-
-    function playOnTouch() {
+    function startMusicNow() {
       if (userManuallyMuted) return;
-      ensureAudioSource();
+      if (!audio.getAttribute('src')) {
+        audio.setAttribute('src', DEFAULT_MUSIC);
+      }
       if (audio.paused) {
-        const p = audio.play();
-        if (p && typeof p.catch === 'function') {
-          p.catch(() => {});
-        }
+        audio.play().then(() => {
+          musicStartedOnce = true;
+          updateMusicButton();
+        }).catch(() => {});
       }
     }
 
-    ['pointerdown', 'touchstart', 'click'].forEach(evtName => {
-      document.addEventListener(evtName, playOnTouch, { capture: true, passive: true });
+    function handleGlobalTap() {
+      if (!userManuallyMuted && audio.paused) {
+        startMusicNow();
+      }
+    }
+
+    window.addEventListener('pointerdown', handleGlobalTap, { passive: true });
+    window.addEventListener('touchstart', handleGlobalTap, { passive: true });
+    window.addEventListener('click', handleGlobalTap, { passive: true });
+    audio.addEventListener('canplay', () => {
+      if (!userManuallyMuted && musicStartedOnce && audio.paused) {
+        audio.play().catch(() => {});
+      }
     });
 
     function toggleAudio(e) {
       if (e) e.stopPropagation();
-      ensureAudioSource();
+      if (!audio.getAttribute('src')) {
+        audio.setAttribute('src', DEFAULT_MUSIC);
+      }
       if (audio.paused) {
         userManuallyMuted = false;
-        audio.play().catch(() => {
-          alert("เบราว์เซอร์หรือโฮสต์ไฟล์เสียงไม่รองรับการเล่นไฟล์นี้ค่ะ ♡");
-        });
+        audio.play().catch(() => {});
       } else {
         userManuallyMuted = true;
         audio.pause();
@@ -783,16 +787,12 @@ Open 09:00 – 22:00
       if (d.fbLabel) document.getElementById('fbBoxTitle').textContent = d.fbLabel;
       if (d.fbUrl) document.getElementById('fbLink').href = d.fbUrl;
 
-      if (d.musicUrl) {
-        const nextEncoded = encodeURI(d.musicUrl);
-        if (nextEncoded !== activeMusicUrl) {
-          const wasPlaying = !audio.paused;
-          activeMusicUrl = nextEncoded;
-          audio.src = activeMusicUrl;
-          audio.load();
-          if (wasPlaying && !userManuallyMuted) {
-            audio.play().catch(() => {});
-          }
+      if (d.musicUrl && audio.getAttribute('src') !== d.musicUrl) {
+        const shouldAutoPlay = !userManuallyMuted && (!audio.paused || musicStartedOnce);
+        audio.setAttribute('src', d.musicUrl);
+        audio.load();
+        if (shouldAutoPlay) {
+          audio.play().catch(() => {});
         }
       }
     }
